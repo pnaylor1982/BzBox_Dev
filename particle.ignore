@@ -1,0 +1,4 @@
+# particle.ignore
+.ds_store
+/SparkFun_BME280/
+/SparkFun_BQ27441_Arduino_Library-master/
