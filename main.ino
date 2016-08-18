@@ -4,7 +4,25 @@
 bool once = true;
 int count = 0;
 BME280 mySensor;
+char myStr[64];
+unsigned long timer_data;
+unsigned long timer_serial;
+int data_item = 0;
 
+// BME280 values
+float tempC;
+float pressure;
+float altitude;
+float RH;
+// LiPo values
+unsigned int soc;
+unsigned int volts;
+int current;
+int power;
+int health;
+
+const unsigned int data_rate = 15000;
+const unsigned int serial_rate = 5000;
 const unsigned int BATTERY_CAPACITY = 2000; // e.g. 850mAh battery
 
 void setup() {
@@ -82,40 +100,103 @@ lipo.setCapacity(BATTERY_CAPACITY); // Configure BQ27441 to assume a 1000 mAh ba
 
 void loop() {
 
+if(millis() >= timer_serial){       // update data values, print on serial monitor
 // BME280 reads
   Serial.println("_________");
 
   Serial.print("temp (C): ");
-  float tempC = mySensor.readTempC();
+  tempC = mySensor.readTempC();
   Serial.println(tempC);
 
   Serial.print("Pressure (kPa): ");
-  float pressure = mySensor.readFloatPressure();
+  pressure = mySensor.readFloatPressure();
   Serial.println(pressure);
 
   Serial.print("Altitude (m): ");
-  float altitude = mySensor.readFloatAltitudeMeters();
+  altitude = mySensor.readFloatAltitudeMeters();
   Serial.println(altitude);
 
   Serial.print("RH (%): ");
-  float RH = mySensor.readFloatHumidity();
+  RH = mySensor.readFloatHumidity();
   Serial.println(RH);
+
+  // BQ27441 Battery Manager calls
+  soc = lipo.soc(); // Read state-of-charge (in %)
+  volts = lipo.voltage(); // Read voltage (in mV)
+  current = lipo.current(AVG); // Read average current (in mA)
+  power = lipo.power(); // Read power consumption (in mW)
+  health = lipo.soh(); // Read state-of-health (in %)
+
+  Serial.print("State of Charge/Health: ");
+  Serial.print(soc);
+  Serial.print(", ");
+  Serial.println(health);
+
+  Serial.print("mV, mA, mW: ");
+  Serial.print(volts);
+  Serial.print(", ");
+  Serial.print(current);
+  Serial.print(", ");
+  Serial.println(power);
+
+    timer_serial = millis() + serial_rate;
+}
+
 //----------//
 
-// BQ27441 Battery Manager calls
-unsigned int soc = lipo.soc(); // Read state-of-charge (in %)
-unsigned int volts = lipo.voltage(); // Read voltage (in mV)
-int current = lipo.current(AVG); // Read average current (in mA)
-int power = lipo.power(); // Read power consumption (in mW)
-int health = lipo.soh(); // Read state-of-health (in %)
 
-Serial.print("State of Charge/Health: ");
-Serial.println(soc);
+if(millis() >= timer_data)      // Thingspeak API only allows one entry every 15 seconds...
+{
+  switch (data_item){
 
-Serial.print("mV, mA, mAH, mW: ");
-Serial.println(volts);
+    case 0:
+      Particle.publish("tempC",String(tempC), 60, PRIVATE);
+      break;
 
+    case 1:
+      Particle.publish("Pressure",String(pressure), PRIVATE);
+    break;
 
-  delay(1000);
+    case 2:
+      Particle.publish("Altitude",String(altitude), 60, PRIVATE);
+    break;
+
+    case 3:
+      Particle.publish("RH",String(RH), PRIVATE);
+    break;
+
+    case 4:
+      Particle.publish("soc",String(soc), PRIVATE);
+    break;
+
+    case 5:
+      Particle.publish("mV",String(volts), PRIVATE);
+    break;
+
+    case 6:
+      Particle.publish("mA",String(current), PRIVATE);
+    break;
+
+    case 7:
+      Particle.publish("mW",String(power), PRIVATE);
+    break;
+
+    }
+
+    Serial.println(".....");
+    Serial.print("Data to CLoud: ");
+    Serial.print(millis());
+    Serial.print(", ");
+    Serial.println(data_item);
+    Serial.println(".....");
+
+    timer_data = millis() + data_rate;
+    data_item++;
+    if(data_item > 7){
+       data_item = 0;
+    }
+}
+
+//  delay(10000);
 
 }
